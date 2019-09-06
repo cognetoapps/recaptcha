@@ -189,17 +189,6 @@ module Recaptcha
           // Invoke immediately
           #{recaptcha_v3_execute_function_name(action)}()
 
-          // Async variant so you can await this function from another async function (no need for
-          // an explicit callback function then!)
-          // Returns a Promise that resolves with the response token.
-          async function #{recaptcha_v3_async_execute_function_name(action)}() {
-            return new Promise((resolve, reject) => {
-              grecaptcha.ready(async function() {
-                resolve(await grecaptcha.execute('#{site_key}', {action: '#{action}'}))
-              });
-            })
-          };
-
           #{recaptcha_v3_define_default_callback(callback) if recaptcha_v3_define_default_callback?(callback, action, options)}
         </script>
       HTML
@@ -233,11 +222,6 @@ module Recaptcha
     # grecaptcha.execute). You can call it again later to reset it.
     def self.recaptcha_v3_execute_function_name(action)
       "executeRecaptchaFor#{sanitize_action_for_js(action)}"
-    end
-
-    # Returns the name of an async JavaScript function that executes the reCAPTCHA code.
-    def self.recaptcha_v3_async_execute_function_name(action)
-      "#{recaptcha_v3_execute_function_name(action)}Async"
     end
 
     def self.recaptcha_v3_default_callback_name(action)
