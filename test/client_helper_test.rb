@@ -78,6 +78,19 @@ describe 'View helpers' do
     html.wont_include("onload=")
   end
 
+  describe "turbolinks" do
+    it "adds onload to defined function" do
+      html = recaptcha_v3(action: 'request', turbolinks: true)
+      html.must_include("onload=executeRecaptchaForRequest")
+    end
+
+    it "overrides specified onload" do
+      html = recaptcha_v3(action: 'request', onload: "foobar", turbolinks: true)
+      html.wont_include("onload=foobar")
+      html.must_include("onload=executeRecaptchaForRequest")
+    end
+  end
+
   it "adds :render option to the url" do
     html = recaptcha_tags(render: 'onload')
     html.must_include("render=onload")
@@ -200,6 +213,18 @@ describe 'View helpers' do
       assert_raises Recaptcha::RecaptchaError do
         invisible_recaptcha_tags(ui: :foo)
       end
+    end
+  end
+
+  describe "v3 recaptcha" do
+    it "renders input" do
+      html = recaptcha_v3 action: :foo
+      html.must_include('<input type="hidden" name="g-recaptcha-response-data[foo]" id="g-recaptcha-response-data-foo" data-sitekey="0000000000000000000000000000000000000000" class="g-recaptcha g-recaptcha-response "/>')
+    end
+
+    it "does not have obsole closing script tag" do
+      html = recaptcha_v3 action: :foo
+      assert html.scan(/script/).length.even?
     end
   end
 end

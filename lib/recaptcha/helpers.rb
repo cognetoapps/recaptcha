@@ -10,8 +10,9 @@ module Recaptcha
     def self.recaptcha_v3(options = {})
       site_key = options[:site_key] ||= Recaptcha.configuration.site_key!
       action = options.delete(:action) || raise(Recaptcha::RecaptchaError, 'action is required')
-      id   = options.delete(:id)   || "g-recaptcha-response-" + dasherize_action(action)
-      name = options.delete(:name) || "g-recaptcha-response[#{action}]"
+      id = options.delete(:id) || "g-recaptcha-response-data-" + dasherize_action(action)
+      name = options.delete(:name) || "g-recaptcha-response-data[#{action}]"
+      turbolinks = options.delete(:turbolinks)
       options[:render] = site_key
       options[:script_async] ||= false
       options[:script_defer] ||= false
@@ -22,8 +23,13 @@ module Recaptcha
       end
       options[:class] = "g-recaptcha-response #{options[:class]}"
 
+      if turbolinks
+        options[:onload] = recaptcha_v3_execute_function_name(action)
+      end
       html, tag_attributes = components(options)
-      if recaptcha_v3_inline_script?(options)
+      if turbolinks
+        html << recaptcha_v3_onload_script(site_key, action, callback, id, options)
+      elsif recaptcha_v3_inline_script?(options)
         html << recaptcha_v3_inline_script(site_key, action, callback, id, options)
       end
       case element
@@ -181,7 +187,6 @@ module Recaptcha
           function #{recaptcha_v3_execute_function_name(action)}() {
             grecaptcha.ready(function() {
               grecaptcha.execute('#{site_key}', {action: '#{action}'}).then(function(token) {
-                //console.log('#{id}', token)
                 #{callback}('#{id}', token)
               });
             });
@@ -189,6 +194,24 @@ module Recaptcha
           // Invoke immediately
           #{recaptcha_v3_execute_function_name(action)}()
 
+          #{recaptcha_v3_define_default_callback(callback) if recaptcha_v3_define_default_callback?(callback, action, options)}
+        </script>
+      HTML
+    end
+
+    private_class_method def self.recaptcha_v3_onload_script(site_key, action, callback, id, options = {})
+      nonce = options[:nonce]
+      nonce_attr = " nonce='#{nonce}'" if nonce
+
+      <<-HTML
+        <script#{nonce_attr}>
+          function #{recaptcha_v3_execute_function_name(action)}() {
+            grecaptcha.ready(function() {
+              grecaptcha.execute('#{site_key}', {action: '#{action}'}).then(function(token) {
+                #{callback}('#{id}', token)
+              });
+            });
+          };
           #{recaptcha_v3_define_default_callback(callback) if recaptcha_v3_define_default_callback?(callback, action, options)}
         </script>
       HTML
@@ -206,7 +229,6 @@ module Recaptcha
             var element = document.getElementById(id);
             element.value = token;
           }
-        </script>
       HTML
     end
 
@@ -267,13 +289,13 @@ module Recaptcha
     # Returns a camelized string that is safe for use in a JavaScript variable/function name.
     # sanitize_action_for_js('my/action') => 'MyAction'
     private_class_method def self.sanitize_action_for_js(action)
-      action.to_s.gsub(/\W/, '_').camelize
+      action.to_s.gsub(/\W/, '_').split(/\/|_/).map(&:capitalize).join
     end
 
     # Returns a dasherized string that is safe for use as an HTML ID
     # dasherize_action('my/action') => 'my-action'
     private_class_method def self.dasherize_action(action)
-      action.to_s.gsub(/\W/, '-').dasherize
+      action.to_s.gsub(/\W/, '-').tr('_', '-')
     end
 
     private_class_method def self.hash_to_query(hash)
